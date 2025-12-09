@@ -202,15 +202,5 @@ func FormatOrdersTableWithIDs(orders []*broker.Order, showFullIDs bool) string {
 		)
 	}
 
-	output := table.Render()
-
-	// Add copyable IDs section if there are orders
-	if showFullIDs && len(orders) > 0 {
-		output += "\n" + Section("Order IDs (copy-paste ready)") + "\n"
-		for _, order := range orders {
-			output += MutedStyle.Render(fmt.Sprintf("  %s: %s\n", order.Symbol, order.ID))
-		}
-	}
-
-	return output
+	return table.Render()
 }
