@@ -105,13 +105,24 @@ func FormatPositionPlan(symbol string, size, entry, sl, tp float64, leverage int
 	return "\n" + Box("Position Plan", RenderSimpleTable(data))
 }
 
-// FormatPositionsTable formats multiple positions as a table
-func FormatPositionsTable(positions []*broker.Position) string {
+// FormatPositionsTable formats multiple positions as a table with TP/SL targets
+func FormatPositionsTable(positions []*broker.Position, orders []*broker.Order) string {
 	if len(positions) == 0 {
 		return Info("No open positions")
 	}
 
-	table := NewTable("Symbol", "Side", "Size", "Entry", "Mark", "PnL", "PnL %", "Leverage")
+	// Create order map by symbol and type for quick lookup
+	orderMap := make(map[string]map[broker.OrderType]*broker.Order)
+	if orders != nil {
+		for _, order := range orders {
+			if orderMap[order.Symbol] == nil {
+				orderMap[order.Symbol] = make(map[broker.OrderType]*broker.Order)
+			}
+			orderMap[order.Symbol][order.Type] = order
+		}
+	}
+
+	table := NewTable("Symbol", "Side", "Size", "Entry", "Mark", "PnL", "PnL %", "To TP", "To SL", "Leverage")
 
 	for _, pos := range positions {
 		// Side with icon and color
@@ -153,6 +164,52 @@ func FormatPositionsTable(positions []*broker.Position) string {
 			pnlPercentStr = MutedStyle.Render("0.00%")
 		}
 
+		// Calculate distance to TP (Take Profit)
+		toTPStr := MutedStyle.Render("-")
+		if orderMap[pos.Symbol] != nil && orderMap[pos.Symbol][broker.OrderTypeTakeProfit] != nil {
+			tpOrder := orderMap[pos.Symbol][broker.OrderTypeTakeProfit]
+			tpPrice := tpOrder.Price
+			if tpPrice == 0 {
+				tpPrice = tpOrder.StopPrice
+			}
+
+			var distancePercent float64
+			if pos.Side == broker.SideLong {
+				distancePercent = ((tpPrice - pos.MarkPrice) / pos.MarkPrice) * 100
+			} else {
+				distancePercent = ((pos.MarkPrice - tpPrice) / pos.MarkPrice) * 100
+			}
+
+			if distancePercent > 0 {
+				toTPStr = SuccessStyle.Render(fmt.Sprintf("+%.2f%%", distancePercent))
+			} else {
+				toTPStr = ErrorStyle.Render(fmt.Sprintf("%.2f%%", distancePercent))
+			}
+		}
+
+		// Calculate distance to SL (Stop Loss)
+		toSLStr := MutedStyle.Render("-")
+		if orderMap[pos.Symbol] != nil && orderMap[pos.Symbol][broker.OrderTypeStop] != nil {
+			slOrder := orderMap[pos.Symbol][broker.OrderTypeStop]
+			slPrice := slOrder.Price
+			if slPrice == 0 {
+				slPrice = slOrder.StopPrice
+			}
+
+			var distancePercent float64
+			if pos.Side == broker.SideLong {
+				distancePercent = ((slPrice - pos.MarkPrice) / pos.MarkPrice) * 100
+			} else {
+				distancePercent = ((pos.MarkPrice - slPrice) / pos.MarkPrice) * 100
+			}
+
+			if distancePercent < 0 {
+				toSLStr = ErrorStyle.Render(fmt.Sprintf("%.2f%%", distancePercent))
+			} else {
+				toSLStr = WarningStyle.Render(fmt.Sprintf("+%.2f%%", distancePercent))
+			}
+		}
+
 		table.AddRow(
 			BoldStyle.Render(pos.Symbol),
 			sideStr,
@@ -161,6 +218,8 @@ func FormatPositionsTable(positions []*broker.Position) string {
 			FormatMoney(pos.MarkPrice),
 			pnlStr,
 			pnlPercentStr,
+			toTPStr,
+			toSLStr,
 			fmt.Sprintf("%dx", pos.Leverage),
 		)
 	}

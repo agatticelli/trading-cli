@@ -155,8 +155,15 @@ func (e *Executor) ExecuteGetPositions(ctx context.Context, symbol string) error
 			continue
 		}
 
-		// Use table formatter
-		fmt.Println(ui.FormatPositionsTable(positions))
+		// Get orders to show TP/SL targets
+		orders, err := brk.GetOrders(ctx, &broker.OrderFilter{Symbol: symbol})
+		if err != nil {
+			// If we can't get orders, still show positions without TP/SL info
+			orders = []*broker.Order{}
+		}
+
+		// Use table formatter with orders for TP/SL display
+		fmt.Println(ui.FormatPositionsTable(positions, orders))
 	}
 
 	return nil
