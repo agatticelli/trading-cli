@@ -234,42 +234,69 @@ func FormatOrdersTableWithIDs(orders []*broker.Order, positions []*broker.Positi
 			idStr = order.ID[:10] + "..."
 		}
 
-		// Calculate expected PnL for TAKE_PROFIT and STOP orders
+		// Calculate expected PnL for orders that could close positions
 		expectedPnLStr := MutedStyle.Render("-")
-		if (order.Type == broker.OrderTypeTakeProfit || order.Type == broker.OrderTypeStop) && positionMap[order.Symbol] != nil {
-			pos := positionMap[order.Symbol]
+		pos := positionMap[order.Symbol]
 
-			// Get the execution price (order price or stop price)
-			executionPrice := order.Price
-			if executionPrice == 0 {
-				executionPrice = order.StopPrice
+		// Only calculate if we have a position and the order could close it
+		if pos != nil {
+			// Check if order is closing (opposite side or reduce-only)
+			isClosing := false
+
+			// TAKE_PROFIT and STOP are always closing orders
+			if order.Type == broker.OrderTypeTakeProfit || order.Type == broker.OrderTypeStop {
+				isClosing = true
 			}
 
-			// Calculate PnL: (exit_price - entry_price) * size * direction
-			var pnlNominal float64
-			if pos.Side == broker.SideLong {
-				pnlNominal = (executionPrice - pos.EntryPrice) * order.Size
-			} else {
-				pnlNominal = (pos.EntryPrice - executionPrice) * order.Size
-			}
-
-			// Calculate PnL percentage
-			var pnlPercent float64
-			if pos.EntryPrice > 0 {
-				if pos.Side == broker.SideLong {
-					pnlPercent = ((executionPrice - pos.EntryPrice) / pos.EntryPrice) * 100
+			// For LIMIT orders, check if it's reduce-only or opposite side
+			if order.Type == broker.OrderTypeLimit {
+				// If reduce-only, it's definitely closing
+				if order.ReduceOnly {
+					isClosing = true
 				} else {
-					pnlPercent = ((pos.EntryPrice - executionPrice) / pos.EntryPrice) * 100
+					// Check if order side would close the position
+					// LONG position closed by SELL (SHORT) order
+					// SHORT position closed by BUY (LONG) order
+					if (pos.Side == broker.SideLong && order.Side == broker.SideShort) ||
+						(pos.Side == broker.SideShort && order.Side == broker.SideLong) {
+						isClosing = true
+					}
 				}
 			}
 
-			// Format with color
-			if pnlNominal > 0 {
-				expectedPnLStr = SuccessStyle.Render(fmt.Sprintf("+%s (+%.2f%%)", FormatMoney(pnlNominal), pnlPercent))
-			} else if pnlNominal < 0 {
-				expectedPnLStr = ErrorStyle.Render(fmt.Sprintf("%s (%.2f%%)", FormatMoney(pnlNominal), pnlPercent))
-			} else {
-				expectedPnLStr = MutedStyle.Render(fmt.Sprintf("%s (0.00%%)", FormatMoney(0)))
+			if isClosing {
+				// Get the execution price (order price or stop price)
+				executionPrice := order.Price
+				if executionPrice == 0 {
+					executionPrice = order.StopPrice
+				}
+
+				// Calculate PnL: (exit_price - entry_price) * size * direction
+				var pnlNominal float64
+				if pos.Side == broker.SideLong {
+					pnlNominal = (executionPrice - pos.EntryPrice) * order.Size
+				} else {
+					pnlNominal = (pos.EntryPrice - executionPrice) * order.Size
+				}
+
+				// Calculate PnL percentage
+				var pnlPercent float64
+				if pos.EntryPrice > 0 {
+					if pos.Side == broker.SideLong {
+						pnlPercent = ((executionPrice - pos.EntryPrice) / pos.EntryPrice) * 100
+					} else {
+						pnlPercent = ((pos.EntryPrice - executionPrice) / pos.EntryPrice) * 100
+					}
+				}
+
+				// Format with color
+				if pnlNominal > 0 {
+					expectedPnLStr = SuccessStyle.Render(fmt.Sprintf("+%s (+%.2f%%)", FormatMoney(pnlNominal), pnlPercent))
+				} else if pnlNominal < 0 {
+					expectedPnLStr = ErrorStyle.Render(fmt.Sprintf("%s (%.2f%%)", FormatMoney(pnlNominal), pnlPercent))
+				} else {
+					expectedPnLStr = MutedStyle.Render(fmt.Sprintf("%s (0.00%%)", FormatMoney(0)))
+				}
 			}
 		}
 
