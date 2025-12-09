@@ -10,6 +10,7 @@ import (
 	"github.com/agatticelli/trading-go/bingx"
 	"github.com/agatticelli/trading-go/broker"
 	"github.com/agatticelli/trading-cli/internal/config"
+	"github.com/agatticelli/trading-cli/internal/ui"
 )
 
 // Executor orchestrates commands across multiple accounts and modules
@@ -124,19 +125,15 @@ func (e *Executor) ExecuteOpenPosition(ctx context.Context, cmd *intent.Normaliz
 // ExecuteGetBalance retrieves balance for all accounts
 func (e *Executor) ExecuteGetBalance(ctx context.Context) error {
 	for accountName, brk := range e.brokers {
-		fmt.Printf("\n💼 Account: %s\n", accountName)
+		fmt.Println(ui.Account(accountName))
 
 		balance, err := brk.GetBalance(ctx)
 		if err != nil {
-			fmt.Printf("  ✗ Failed to get balance: %v\n", err)
+			fmt.Println(ui.Error(fmt.Sprintf("Failed to get balance: %v", err)))
 			continue
 		}
 
-		fmt.Printf("  Asset:         %s\n", balance.Asset)
-		fmt.Printf("  Total:         %.2f\n", balance.Total)
-		fmt.Printf("  Available:     %.2f\n", balance.Available)
-		fmt.Printf("  In Use:        %.2f\n", balance.InUse)
-		fmt.Printf("  Unrealized PnL: %.2f\n", balance.UnrealizedPnL)
+		fmt.Println(ui.FormatBalance(balance))
 	}
 
 	return nil
@@ -150,26 +147,21 @@ func (e *Executor) ExecuteGetPositions(ctx context.Context, symbol string) error
 	}
 
 	for accountName, brk := range e.brokers {
-		fmt.Printf("\n💼 Account: %s\n", accountName)
+		fmt.Println(ui.Account(accountName))
 
 		positions, err := brk.GetPositions(ctx, filter)
 		if err != nil {
-			fmt.Printf("  ✗ Failed to get positions: %v\n", err)
+			fmt.Println(ui.Error(fmt.Sprintf("Failed to get positions: %v", err)))
 			continue
 		}
 
 		if len(positions) == 0 {
-			fmt.Printf("  No open positions\n")
+			fmt.Println(ui.Info("No open positions"))
 			continue
 		}
 
 		for _, pos := range positions {
-			sideIcon := "↑"
-			if pos.Side == broker.SideShort {
-				sideIcon = "↓"
-			}
-			fmt.Printf("  %s %s | %.4f @ %.2f | PnL: %.2f | %dx\n",
-				sideIcon, pos.Symbol, pos.Size, pos.EntryPrice, pos.UnrealizedPnL, pos.Leverage)
+			fmt.Println(ui.FormatPosition(pos))
 		}
 	}
 
@@ -184,22 +176,21 @@ func (e *Executor) ExecuteGetOrders(ctx context.Context, symbol string) error {
 	}
 
 	for accountName, brk := range e.brokers {
-		fmt.Printf("\n💼 Account: %s\n", accountName)
+		fmt.Println(ui.Account(accountName))
 
 		orders, err := brk.GetOrders(ctx, filter)
 		if err != nil {
-			fmt.Printf("  ✗ Failed to get orders: %v\n", err)
+			fmt.Println(ui.Error(fmt.Sprintf("Failed to get orders: %v", err)))
 			continue
 		}
 
 		if len(orders) == 0 {
-			fmt.Printf("  No open orders\n")
+			fmt.Println(ui.Info("No open orders"))
 			continue
 		}
 
 		for _, order := range orders {
-			fmt.Printf("  %s | %s %s | %.4f @ %.2f | %s\n",
-				order.ID, order.Symbol, order.Side, order.Size, order.Price, order.Type)
+			fmt.Println(ui.FormatOrder(order))
 		}
 	}
 

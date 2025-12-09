@@ -78,6 +78,7 @@ func init() {
 	rootCmd.AddCommand(cancelCmd)
 	rootCmd.AddCommand(trailCmd)
 	rootCmd.AddCommand(breakevenCmd)
+	rootCmd.AddCommand(chatCmd)
 }
 
 // getExecutor returns the initialized executor or exits
