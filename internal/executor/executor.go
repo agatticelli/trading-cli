@@ -6,6 +6,7 @@ import (
 
 	"github.com/agatticelli/intent-go"
 	"github.com/agatticelli/strategy-go"
+	"github.com/agatticelli/strategy-go/calculator"
 	"github.com/agatticelli/strategy-go/strategies/riskratio"
 	"github.com/agatticelli/trading-go/bingx"
 	"github.com/agatticelli/trading-go/broker"
@@ -18,6 +19,7 @@ type Executor struct {
 	config     *config.Config
 	brokers    map[string]broker.Broker // accountName -> broker
 	strategies map[string]strategy.Strategy
+	calculator *calculator.Calculator
 	isDemoMode bool
 }
 
@@ -27,6 +29,7 @@ func New(cfg *config.Config, isDemoMode bool) (*Executor, error) {
 		config:     cfg,
 		brokers:    make(map[string]broker.Broker),
 		strategies: make(map[string]strategy.Strategy),
+		calculator: calculator.New(125), // Max leverage 125x
 		isDemoMode: isDemoMode,
 	}
 
@@ -73,10 +76,22 @@ func (e *Executor) ExecuteOpenPosition(ctx context.Context, cmd *intent.Normaliz
 			continue
 		}
 
-		// 3. Validate price logic
-		if err := validatePriceLogic(cmd.Side, *cmd.EntryPrice, *cmd.StopLoss, currentPrice); err != nil {
-			fmt.Printf("  ✗ Invalid price logic: %v\n", err)
+		// 3. Validate price logic using calculator
+		brokerSide := brokerSideFromIntent(*cmd.Side)
+		if err := e.calculator.ValidatePriceLogic(brokerSide, *cmd.EntryPrice, currentPrice); err != nil {
+			fmt.Printf("  ✗ Invalid entry price: %v\n", err)
 			continue
+		}
+		if err := e.calculator.ValidateStopLoss(brokerSide, *cmd.EntryPrice, *cmd.StopLoss); err != nil {
+			fmt.Printf("  ✗ Invalid stop loss: %v\n", err)
+			continue
+		}
+
+		// Warn if entry price is far from current price
+		priceDiff := ((*cmd.EntryPrice - currentPrice) / currentPrice) * 100
+		if priceDiff > 5 || priceDiff < -5 {
+			fmt.Printf("  ⚠ Entry price %.2f is %.2f%% away from current price %.2f\n",
+				*cmd.EntryPrice, priceDiff, currentPrice)
 		}
 
 		// 4. Calculate position using strategy
@@ -434,31 +449,6 @@ func (e *Executor) ExecuteBreakEven(ctx context.Context, symbol string) error {
 }
 
 // Helper functions
-
-func validatePriceLogic(side *intent.Side, entry, stopLoss, currentPrice float64) error {
-	if side == nil {
-		return fmt.Errorf("side is required")
-	}
-
-	// For LONG: SL must be below entry
-	if *side == intent.SideLong && stopLoss >= entry {
-		return fmt.Errorf("stop loss must be below entry price for LONG positions")
-	}
-
-	// For SHORT: SL must be above entry
-	if *side == intent.SideShort && stopLoss <= entry {
-		return fmt.Errorf("stop loss must be above entry price for SHORT positions")
-	}
-
-	// Warn if entry price is far from current price
-	priceDiff := ((entry - currentPrice) / currentPrice) * 100
-	if priceDiff > 5 || priceDiff < -5 {
-		fmt.Printf("  ⚠ Entry price %.2f is %.2f%% away from current price %.2f\n",
-			entry, priceDiff, currentPrice)
-	}
-
-	return nil
-}
 
 func brokerSideFromIntent(side intent.Side) broker.Side {
 	if side == intent.SideLong {
