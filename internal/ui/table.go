@@ -36,12 +36,20 @@ func (t *Table) AddRow(values ...string) {
 	for i, v := range values {
 		// Remove ANSI codes for width calculation
 		cleanV := stripANSI(v)
-		if len(cleanV) > t.widths[i] {
-			t.widths[i] = len(cleanV)
+		// Also handle Unicode characters (like arrows) that may be wider
+		visualLen := visualLength(cleanV)
+		if visualLen > t.widths[i] {
+			t.widths[i] = visualLen
 		}
 	}
 
 	t.rows = append(t.rows, values)
+}
+
+// visualLength calculates the visual length considering runes
+func visualLength(s string) int {
+	// For now, just return rune count which handles Unicode better
+	return len([]rune(s))
 }
 
 // Render renders the table
@@ -100,9 +108,10 @@ func (t *Table) Render() string {
 		for i, cell := range row {
 			output.WriteString(" ")
 			output.WriteString(cell)
-			// Pad to column width (accounting for ANSI codes)
+			// Pad to column width (accounting for ANSI codes and Unicode)
 			cleanCell := stripANSI(cell)
-			padding := t.widths[i] - len(cleanCell)
+			visualLen := visualLength(cleanCell)
+			padding := t.widths[i] - visualLen
 			if padding > 0 {
 				output.WriteString(strings.Repeat(" ", padding))
 			}

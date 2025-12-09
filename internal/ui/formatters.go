@@ -111,7 +111,7 @@ func FormatPositionsTable(positions []*broker.Position) string {
 		return Info("No open positions")
 	}
 
-	table := NewTable("Symbol", "Side", "Size", "Entry", "Mark", "PnL", "Leverage")
+	table := NewTable("Symbol", "Side", "Size", "Entry", "Mark", "PnL", "PnL %", "Leverage")
 
 	for _, pos := range positions {
 		// Side with icon and color
@@ -132,6 +132,27 @@ func FormatPositionsTable(positions []*broker.Position) string {
 			pnlStr = MutedStyle.Render("$0.00")
 		}
 
+		// Calculate PnL percentage
+		// PnL% = (Mark - Entry) / Entry * 100 * Direction
+		var pnlPercent float64
+		if pos.EntryPrice > 0 {
+			if pos.Side == broker.SideLong {
+				pnlPercent = ((pos.MarkPrice - pos.EntryPrice) / pos.EntryPrice) * 100
+			} else {
+				pnlPercent = ((pos.EntryPrice - pos.MarkPrice) / pos.EntryPrice) * 100
+			}
+		}
+
+		// PnL % with color
+		pnlPercentStr := ""
+		if pnlPercent > 0 {
+			pnlPercentStr = SuccessStyle.Render(fmt.Sprintf("+%.2f%%", pnlPercent))
+		} else if pnlPercent < 0 {
+			pnlPercentStr = ErrorStyle.Render(fmt.Sprintf("%.2f%%", pnlPercent))
+		} else {
+			pnlPercentStr = MutedStyle.Render("0.00%")
+		}
+
 		table.AddRow(
 			BoldStyle.Render(pos.Symbol),
 			sideStr,
@@ -139,6 +160,7 @@ func FormatPositionsTable(positions []*broker.Position) string {
 			fmt.Sprintf("$%.2f", pos.EntryPrice),
 			fmt.Sprintf("$%.2f", pos.MarkPrice),
 			pnlStr,
+			pnlPercentStr,
 			fmt.Sprintf("%dx", pos.Leverage),
 		)
 	}
