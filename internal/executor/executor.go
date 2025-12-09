@@ -77,12 +77,11 @@ func (e *Executor) ExecuteOpenPosition(ctx context.Context, cmd *intent.Normaliz
 		}
 
 		// 3. Validate price logic using calculator
-		calcSide := calculatorSideFromIntent(*cmd.Side)
-		if err := e.calculator.ValidatePriceLogic(calcSide, *cmd.EntryPrice, currentPrice); err != nil {
+		if err := e.calculator.ValidatePriceLogic(*cmd.Side, *cmd.EntryPrice, currentPrice); err != nil {
 			fmt.Printf("  ✗ Invalid entry price: %v\n", err)
 			continue
 		}
-		if err := e.calculator.ValidateStopLoss(calcSide, *cmd.EntryPrice, *cmd.StopLoss); err != nil {
+		if err := e.calculator.ValidateStopLoss(*cmd.Side, *cmd.EntryPrice, *cmd.StopLoss); err != nil {
 			fmt.Printf("  ✗ Invalid stop loss: %v\n", err)
 			continue
 		}
@@ -97,7 +96,7 @@ func (e *Executor) ExecuteOpenPosition(ctx context.Context, cmd *intent.Normaliz
 		// 4. Calculate position using strategy
 		plan, err := strat.CalculatePosition(ctx, strategy.PositionParams{
 			Symbol:         cmd.Symbol,
-			Side:           strategySideFromIntent(*cmd.Side),
+			Side:           *cmd.Side, // No conversion needed!
 			EntryPrice:     *cmd.EntryPrice,
 			StopLoss:       *cmd.StopLoss,
 			AccountBalance: balance.Available,
@@ -449,36 +448,7 @@ func (e *Executor) ExecuteBreakEven(ctx context.Context, symbol string) error {
 }
 
 // Helper functions
-
-// Type conversion functions between broker, strategy, calculator, and intent types
-
-func brokerSideFromIntent(side intent.Side) broker.Side {
-	if side == intent.SideLong {
-		return broker.SideLong
-	}
-	return broker.SideShort
-}
-
-func strategySideFromIntent(side intent.Side) strategy.Side {
-	if side == intent.SideLong {
-		return strategy.SideLong
-	}
-	return strategy.SideShort
-}
-
-func calculatorSideFromIntent(side intent.Side) calculator.Side {
-	if side == intent.SideLong {
-		return calculator.SideLong
-	}
-	return calculator.SideShort
-}
-
-func brokerSideFromStrategy(side strategy.Side) broker.Side {
-	if side == strategy.SideLong {
-		return broker.SideLong
-	}
-	return broker.SideShort
-}
+// Note: Type conversion functions removed - all modules now use trading-common-types!
 
 func displayPositionPlan(plan *strategy.PositionPlan, availableBalance float64) {
 	fmt.Printf("\n  Position Plan\n")
@@ -499,7 +469,7 @@ func displayPositionPlan(plan *strategy.PositionPlan, availableBalance float64) 
 func buildOrderRequest(plan *strategy.PositionPlan) *broker.OrderRequest {
 	req := &broker.OrderRequest{
 		Symbol: plan.Symbol,
-		Side:   brokerSideFromStrategy(plan.Side),
+		Side:   plan.Side, // No conversion needed - same type!
 		Type:   broker.OrderTypeLimit,
 		Size:   plan.Size,
 		Price:  plan.EntryPrice,

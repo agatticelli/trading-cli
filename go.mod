@@ -10,6 +10,8 @@ replace github.com/agatticelli/strategy-go => ../strategy-go
 
 replace github.com/agatticelli/intent-go => ../intent-go
 
+replace github.com/agatticelli/trading-common-types => ../trading-common-types
+
 require (
 	github.com/agatticelli/calculator-go v0.0.0-00010101000000-000000000000
 	github.com/agatticelli/intent-go v0.1.0
@@ -21,6 +23,7 @@ require (
 )
 
 require (
+	github.com/agatticelli/trading-common-types v0.1.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect

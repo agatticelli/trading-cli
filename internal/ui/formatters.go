@@ -10,13 +10,7 @@ import (
 // Global calculator instance for UI calculations
 var calc = calculator.New(125)
 
-// calculatorSideFromBroker converts broker.Side to calculator.Side
-func calculatorSideFromBroker(side broker.Side) calculator.Side {
-	if side == broker.SideLong {
-		return calculator.SideLong
-	}
-	return calculator.SideShort
-}
+// Note: Type conversion functions removed - all modules now use trading-common-types!
 
 // FormatBalance formats a balance display
 func FormatBalance(balance *broker.Balance) string {
@@ -156,7 +150,7 @@ func FormatPositionsTable(positions []*broker.Position, orders []*broker.Order) 
 		}
 
 		// Calculate PnL percentage using calculator
-		pnlPercent := calc.CalculatePnLPercent(calculatorSideFromBroker(pos.Side), pos.EntryPrice, pos.MarkPrice)
+		pnlPercent := calc.CalculatePnLPercent(pos.Side, pos.EntryPrice, pos.MarkPrice)
 
 		// PnL % with color
 		pnlPercentStr := ""
@@ -177,7 +171,7 @@ func FormatPositionsTable(positions []*broker.Position, orders []*broker.Order) 
 				tpPrice = tpOrder.StopPrice
 			}
 
-			distancePercent := calc.CalculateDistanceToPrice(calculatorSideFromBroker(pos.Side), pos.MarkPrice, tpPrice)
+			distancePercent := calc.CalculateDistanceToPrice(pos.Side, pos.MarkPrice, tpPrice)
 
 			if distancePercent > 0 {
 				toTPStr = SuccessStyle.Render(fmt.Sprintf("+%.2f%%", distancePercent))
@@ -195,7 +189,7 @@ func FormatPositionsTable(positions []*broker.Position, orders []*broker.Order) 
 				slPrice = slOrder.StopPrice
 			}
 
-			distancePercent := calc.CalculateDistanceToPrice(calculatorSideFromBroker(pos.Side), pos.MarkPrice, slPrice)
+			distancePercent := calc.CalculateDistanceToPrice(pos.Side, pos.MarkPrice, slPrice)
 
 			if distancePercent < 0 {
 				toSLStr = ErrorStyle.Render(fmt.Sprintf("%.2f%%", distancePercent))
@@ -325,7 +319,7 @@ func FormatOrdersTableWithIDs(orders []*broker.Order, positions []*broker.Positi
 				}
 
 				// Calculate expected PnL using calculator
-				pnlNominal, pnlPercent := calc.CalculateExpectedPnL(calculatorSideFromBroker(pos.Side), pos.EntryPrice, executionPrice, order.Size)
+				pnlNominal, pnlPercent := calc.CalculateExpectedPnL(pos.Side, pos.EntryPrice, executionPrice, order.Size)
 
 				// Format with color
 				if pnlNominal > 0 {
