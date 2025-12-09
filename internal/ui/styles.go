@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -132,7 +133,7 @@ func KeyValue(key, value string) string {
 
 // Money formats a money value with color based on sign
 func Money(value float64) string {
-	formatted := lipgloss.NewStyle().Foreground(ColorPrimary).Render(formatMoney(value))
+	formatted := lipgloss.NewStyle().Foreground(ColorPrimary).Render(FormatMoney(value))
 	if value > 0 {
 		formatted = SuccessStyle.Render("+") + formatted
 	} else if value < 0 {
@@ -152,12 +153,37 @@ func Percent(value float64) string {
 	return MutedStyle.Render(formatted)
 }
 
-// formatMoney formats a float as money
-func formatMoney(value float64) string {
-	if value >= 0 {
-		return fmt.Sprintf("$%.2f", value)
+// FormatMoney formats a float as money with thousands separators
+func FormatMoney(value float64) string {
+	// Format with 2 decimal places
+	formatted := fmt.Sprintf("%.2f", value)
+
+	// Split into integer and decimal parts
+	parts := strings.Split(formatted, ".")
+	intPart := parts[0]
+	decPart := parts[1]
+
+	// Handle negative sign
+	negative := false
+	if strings.HasPrefix(intPart, "-") {
+		negative = true
+		intPart = intPart[1:]
 	}
-	return fmt.Sprintf("-$%.2f", -value)
+
+	// Add thousands separators
+	var result strings.Builder
+	for i, digit := range intPart {
+		if i > 0 && (len(intPart)-i)%3 == 0 {
+			result.WriteRune(',')
+		}
+		result.WriteRune(digit)
+	}
+
+	// Combine parts
+	if negative {
+		return fmt.Sprintf("-$%s.%s", result.String(), decPart)
+	}
+	return fmt.Sprintf("$%s.%s", result.String(), decPart)
 }
 
 // formatPercent formats a float as percentage

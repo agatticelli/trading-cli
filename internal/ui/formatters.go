@@ -11,18 +11,18 @@ func FormatBalance(balance *broker.Balance) string {
 	// PnL with color
 	unrealizedStr := ""
 	if balance.UnrealizedPnL > 0 {
-		unrealizedStr = SuccessStyle.Render(fmt.Sprintf("+$%.2f", balance.UnrealizedPnL))
+		unrealizedStr = SuccessStyle.Render("+" + FormatMoney(balance.UnrealizedPnL))
 	} else if balance.UnrealizedPnL < 0 {
-		unrealizedStr = ErrorStyle.Render(fmt.Sprintf("$%.2f", balance.UnrealizedPnL))
+		unrealizedStr = ErrorStyle.Render(FormatMoney(balance.UnrealizedPnL))
 	} else {
 		unrealizedStr = MutedStyle.Render("$0.00")
 	}
 
 	data := map[string]string{
-		"Asset":         balance.Asset,
-		"Total":         fmt.Sprintf("$%.2f", balance.Total),
-		"Available":     fmt.Sprintf("$%.2f", balance.Available),
-		"In Use":        fmt.Sprintf("$%.2f", balance.InUse),
+		"Asset":          balance.Asset,
+		"Total":          FormatMoney(balance.Total),
+		"Available":      FormatMoney(balance.Available),
+		"In Use":         FormatMoney(balance.InUse),
 		"Unrealized PnL": unrealizedStr,
 	}
 
@@ -91,15 +91,15 @@ func FormatPositionPlan(symbol string, size, entry, sl, tp float64, leverage int
 	data := map[string]string{
 		"Symbol":     symbol,
 		"Size":       fmt.Sprintf("%.4f", size),
-		"Entry":      fmt.Sprintf("$%.2f", entry),
-		"Stop Loss":  fmt.Sprintf("$%.2f", sl),
+		"Entry":      FormatMoney(entry),
+		"Stop Loss":  FormatMoney(sl),
 		"Leverage":   fmt.Sprintf("%dx", leverage),
-		"Risk":       fmt.Sprintf("$%.2f", risk),
-		"Notional":   fmt.Sprintf("$%.2f", notional),
+		"Risk":       FormatMoney(risk),
+		"Notional":   FormatMoney(notional),
 	}
 
 	if tp > 0 {
-		data["Take Profit"] = fmt.Sprintf("$%.2f", tp)
+		data["Take Profit"] = FormatMoney(tp)
 	}
 
 	return "\n" + Box("Position Plan", RenderSimpleTable(data))
@@ -125,9 +125,9 @@ func FormatPositionsTable(positions []*broker.Position) string {
 		// PnL with color
 		pnlStr := ""
 		if pos.UnrealizedPnL > 0 {
-			pnlStr = SuccessStyle.Render(fmt.Sprintf("+$%.2f", pos.UnrealizedPnL))
+			pnlStr = SuccessStyle.Render("+" + FormatMoney(pos.UnrealizedPnL))
 		} else if pos.UnrealizedPnL < 0 {
-			pnlStr = ErrorStyle.Render(fmt.Sprintf("$%.2f", pos.UnrealizedPnL))
+			pnlStr = ErrorStyle.Render(FormatMoney(pos.UnrealizedPnL))
 		} else {
 			pnlStr = MutedStyle.Render("$0.00")
 		}
@@ -157,8 +157,8 @@ func FormatPositionsTable(positions []*broker.Position) string {
 			BoldStyle.Render(pos.Symbol),
 			sideStr,
 			fmt.Sprintf("%.4f", pos.Size),
-			fmt.Sprintf("$%.2f", pos.EntryPrice),
-			fmt.Sprintf("$%.2f", pos.MarkPrice),
+			FormatMoney(pos.EntryPrice),
+			FormatMoney(pos.MarkPrice),
 			pnlStr,
 			pnlPercentStr,
 			fmt.Sprintf("%dx", pos.Leverage),
@@ -194,14 +194,13 @@ func FormatOrdersTableWithIDs(orders []*broker.Order, showFullIDs bool) string {
 		typeStr := InfoStyle.Render(string(order.Type))
 		if order.Type == broker.OrderTypeMarket {
 			typeStr = BoldStyle.Render(string(order.Type))
-		} else if order.Type == broker.OrderTypeStop {
-			typeStr = WarningStyle.Render(string(order.Type))
 		}
+		// LIMIT, STOP, TAKE_PROFIT all use InfoStyle (blue) for consistency
 
 		// Price
-		priceStr := fmt.Sprintf("$%.2f", order.Price)
+		priceStr := FormatMoney(order.Price)
 		if order.Price == 0 && order.StopPrice > 0 {
-			priceStr = MutedStyle.Render(fmt.Sprintf("@ $%.2f", order.StopPrice))
+			priceStr = MutedStyle.Render("@ " + FormatMoney(order.StopPrice))
 		}
 
 		// Status with color based on state
