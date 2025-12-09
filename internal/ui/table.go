@@ -140,37 +140,57 @@ func RenderSimpleTable(data map[string]string) string {
 
 	var output strings.Builder
 
-	// Find max key length
+	// Find max key and value lengths
 	maxKeyLen := 0
-	for key := range data {
+	maxValueLen := 0
+	for key, value := range data {
 		if len(key) > maxKeyLen {
 			maxKeyLen = len(key)
+		}
+		cleanValue := stripANSI(value)
+		if len(cleanValue) > maxValueLen {
+			maxValueLen = len(cleanValue)
 		}
 	}
 
 	borderStyle := lipgloss.NewStyle().Foreground(ColorMuted)
 	keyStyle := lipgloss.NewStyle().Foreground(ColorTertiary).Bold(true)
-	valueStyle := lipgloss.NewStyle().Foreground(ColorPrimary)
 
-	totalWidth := maxKeyLen + 40 // key + padding + value space
+	// Calculate exact width: key + spacing + value + padding
+	contentWidth := maxKeyLen + 2 + maxValueLen + 2 // key + "  " + value + "  "
 
 	// Top border
-	output.WriteString(borderStyle.Render("┌" + strings.Repeat("─", totalWidth) + "┐") + "\n")
+	output.WriteString(borderStyle.Render("┌" + strings.Repeat("─", contentWidth) + "┐") + "\n")
 
-	// Rows
-	for key, value := range data {
+	// Rows (need to iterate in consistent order)
+	keys := []string{"Asset", "Total", "Available", "In Use", "Unrealized PnL"}
+	for _, key := range keys {
+		value, exists := data[key]
+		if !exists {
+			continue
+		}
+
 		output.WriteString(borderStyle.Render("│ "))
-		output.WriteString(keyStyle.Width(maxKeyLen).Render(key))
+		output.WriteString(keyStyle.Render(key))
+
+		// Padding after key
+		keyPadding := maxKeyLen - len(key)
+		output.WriteString(strings.Repeat(" ", keyPadding))
 		output.WriteString("  ")
-		output.WriteString(valueStyle.Render(value))
-		// Pad to total width
-		used := len(key) + len(value) + 4
-		output.WriteString(strings.Repeat(" ", totalWidth-used))
-		output.WriteString(borderStyle.Render(" │") + "\n")
+
+		// Value
+		output.WriteString(value)
+
+		// Padding after value to right border
+		cleanValue := stripANSI(value)
+		valuePadding := maxValueLen - len(cleanValue) + 1
+		output.WriteString(strings.Repeat(" ", valuePadding))
+
+		output.WriteString(borderStyle.Render("│") + "\n")
 	}
 
 	// Bottom border
-	output.WriteString(borderStyle.Render("└" + strings.Repeat("─", totalWidth) + "┘") + "\n")
+	output.WriteString(borderStyle.Render("└" + strings.Repeat("─", contentWidth) + "┘") + "\n")
 
 	return output.String()
 }
