@@ -148,6 +148,11 @@ func FormatPositionsTable(positions []*broker.Position) string {
 
 // FormatOrdersTable formats multiple orders as a table
 func FormatOrdersTable(orders []*broker.Order) string {
+	return FormatOrdersTableWithIDs(orders, false)
+}
+
+// FormatOrdersTableWithIDs formats orders table with optional full IDs
+func FormatOrdersTableWithIDs(orders []*broker.Order, showFullIDs bool) string {
 	if len(orders) == 0 {
 		return Info("No open orders")
 	}
@@ -180,8 +185,14 @@ func FormatOrdersTable(orders []*broker.Order) string {
 		// Status
 		statusStr := MutedStyle.Render(string(order.Status))
 
+		// ID display - full or truncated
+		idStr := order.ID
+		if !showFullIDs && len(order.ID) > 10 {
+			idStr = order.ID[:10] + "..."
+		}
+
 		table.AddRow(
-			MutedStyle.Render(order.ID[:8]+"..."), // Short ID
+			MutedStyle.Render(idStr),
 			BoldStyle.Render(order.Symbol),
 			sideStr,
 			typeStr,
@@ -191,5 +202,15 @@ func FormatOrdersTable(orders []*broker.Order) string {
 		)
 	}
 
-	return table.Render()
+	output := table.Render()
+
+	// Add copyable IDs section if there are orders
+	if showFullIDs && len(orders) > 0 {
+		output += "\n" + Section("Order IDs (copy-paste ready)") + "\n"
+		for _, order := range orders {
+			output += MutedStyle.Render(fmt.Sprintf("  %s: %s\n", order.Symbol, order.ID))
+		}
+	}
+
+	return output
 }

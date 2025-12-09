@@ -163,7 +163,7 @@ func (e *Executor) ExecuteGetPositions(ctx context.Context, symbol string) error
 }
 
 // ExecuteGetOrders retrieves orders for all accounts
-func (e *Executor) ExecuteGetOrders(ctx context.Context, symbol string) error {
+func (e *Executor) ExecuteGetOrders(ctx context.Context, symbol string, verbose bool) error {
 	filter := &broker.OrderFilter{}
 	if symbol != "" {
 		filter.Symbol = symbol
@@ -178,8 +178,8 @@ func (e *Executor) ExecuteGetOrders(ctx context.Context, symbol string) error {
 			continue
 		}
 
-		// Use table formatter
-		fmt.Println(ui.FormatOrdersTable(orders))
+		// Use table formatter with verbose option
+		fmt.Println(ui.FormatOrdersTableWithIDs(orders, verbose))
 	}
 
 	return nil

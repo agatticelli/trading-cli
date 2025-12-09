@@ -120,7 +120,7 @@ func executeNLPCommand(ctx context.Context, exec *executor.Executor, cmd *intent
 		return exec.ExecuteGetPositions(ctx, cmd.Symbol)
 
 	case intent.IntentViewOrders:
-		return exec.ExecuteGetOrders(ctx, cmd.Symbol)
+		return exec.ExecuteGetOrders(ctx, cmd.Symbol, false) // Not verbose in chat
 
 	case intent.IntentCancelOrders:
 		return exec.ExecuteCancelOrders(ctx, cmd.Symbol)
