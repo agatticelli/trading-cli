@@ -77,12 +77,12 @@ func (e *Executor) ExecuteOpenPosition(ctx context.Context, cmd *intent.Normaliz
 		}
 
 		// 3. Validate price logic using calculator
-		brokerSide := brokerSideFromIntent(*cmd.Side)
-		if err := e.calculator.ValidatePriceLogic(brokerSide, *cmd.EntryPrice, currentPrice); err != nil {
+		calcSide := calculatorSideFromIntent(*cmd.Side)
+		if err := e.calculator.ValidatePriceLogic(calcSide, *cmd.EntryPrice, currentPrice); err != nil {
 			fmt.Printf("  ✗ Invalid entry price: %v\n", err)
 			continue
 		}
-		if err := e.calculator.ValidateStopLoss(brokerSide, *cmd.EntryPrice, *cmd.StopLoss); err != nil {
+		if err := e.calculator.ValidateStopLoss(calcSide, *cmd.EntryPrice, *cmd.StopLoss); err != nil {
 			fmt.Printf("  ✗ Invalid stop loss: %v\n", err)
 			continue
 		}
@@ -97,7 +97,7 @@ func (e *Executor) ExecuteOpenPosition(ctx context.Context, cmd *intent.Normaliz
 		// 4. Calculate position using strategy
 		plan, err := strat.CalculatePosition(ctx, strategy.PositionParams{
 			Symbol:         cmd.Symbol,
-			Side:           brokerSideFromIntent(*cmd.Side),
+			Side:           strategySideFromIntent(*cmd.Side),
 			EntryPrice:     *cmd.EntryPrice,
 			StopLoss:       *cmd.StopLoss,
 			AccountBalance: balance.Available,
@@ -114,7 +114,7 @@ func (e *Executor) ExecuteOpenPosition(ctx context.Context, cmd *intent.Normaliz
 
 		// 6. Set leverage
 		leverageSide := "LONG"
-		if plan.Side == broker.SideShort {
+		if plan.Side == strategy.SideShort {
 			leverageSide = "SHORT"
 		}
 		if err := brk.SetLeverage(ctx, cmd.Symbol, leverageSide, plan.Leverage); err != nil {
@@ -450,8 +450,31 @@ func (e *Executor) ExecuteBreakEven(ctx context.Context, symbol string) error {
 
 // Helper functions
 
+// Type conversion functions between broker, strategy, calculator, and intent types
+
 func brokerSideFromIntent(side intent.Side) broker.Side {
 	if side == intent.SideLong {
+		return broker.SideLong
+	}
+	return broker.SideShort
+}
+
+func strategySideFromIntent(side intent.Side) strategy.Side {
+	if side == intent.SideLong {
+		return strategy.SideLong
+	}
+	return strategy.SideShort
+}
+
+func calculatorSideFromIntent(side intent.Side) calculator.Side {
+	if side == intent.SideLong {
+		return calculator.SideLong
+	}
+	return calculator.SideShort
+}
+
+func brokerSideFromStrategy(side strategy.Side) broker.Side {
+	if side == strategy.SideLong {
 		return broker.SideLong
 	}
 	return broker.SideShort
@@ -476,7 +499,7 @@ func displayPositionPlan(plan *strategy.PositionPlan, availableBalance float64) 
 func buildOrderRequest(plan *strategy.PositionPlan) *broker.OrderRequest {
 	req := &broker.OrderRequest{
 		Symbol: plan.Symbol,
-		Side:   plan.Side,
+		Side:   brokerSideFromStrategy(plan.Side),
 		Type:   broker.OrderTypeLimit,
 		Size:   plan.Size,
 		Price:  plan.EntryPrice,
