@@ -1,0 +1,12 @@
+accounts:
+  - name: main
+    api_key: your_api_key_here
+    secret_key: your_secret_key_here
+    broker: bingx
+    enabled: true
+
+  - name: secondary
+    api_key: your_api_key_here
+    secret_key: your_secret_key_here
+    broker: bingx
+    enabled: false
