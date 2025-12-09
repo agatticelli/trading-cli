@@ -204,8 +204,22 @@ func FormatOrdersTableWithIDs(orders []*broker.Order, showFullIDs bool) string {
 			priceStr = MutedStyle.Render(fmt.Sprintf("@ $%.2f", order.StopPrice))
 		}
 
-		// Status
-		statusStr := MutedStyle.Render(string(order.Status))
+		// Status with color based on state
+		statusStr := ""
+		switch order.Status {
+		case broker.OrderStatusNew:
+			statusStr = InfoStyle.Render(string(order.Status)) // Blue - active and waiting
+		case "PENDING":
+			statusStr = WarningStyle.Render(string(order.Status)) // Orange - being processed
+		case broker.OrderStatusFilled:
+			statusStr = SuccessStyle.Render(string(order.Status)) // Green - completed
+		case broker.OrderStatusCanceled:
+			statusStr = MutedStyle.Render(string(order.Status)) // Gray - canceled
+		case broker.OrderStatusRejected:
+			statusStr = ErrorStyle.Render(string(order.Status)) // Red - rejected
+		default:
+			statusStr = MutedStyle.Render(string(order.Status))
+		}
 
 		// ID display - full or truncated
 		idStr := order.ID
