@@ -176,6 +176,270 @@ func (e *Executor) ExecuteGetPositions(ctx context.Context, symbol string) error
 	return nil
 }
 
+// ExecuteGetOrders retrieves orders for all accounts
+func (e *Executor) ExecuteGetOrders(ctx context.Context, symbol string) error {
+	filter := &broker.OrderFilter{}
+	if symbol != "" {
+		filter.Symbol = symbol
+	}
+
+	for accountName, brk := range e.brokers {
+		fmt.Printf("\n💼 Account: %s\n", accountName)
+
+		orders, err := brk.GetOrders(ctx, filter)
+		if err != nil {
+			fmt.Printf("  ✗ Failed to get orders: %v\n", err)
+			continue
+		}
+
+		if len(orders) == 0 {
+			fmt.Printf("  No open orders\n")
+			continue
+		}
+
+		for _, order := range orders {
+			fmt.Printf("  %s | %s %s | %.4f @ %.2f | %s\n",
+				order.ID, order.Symbol, order.Side, order.Size, order.Price, order.Type)
+		}
+	}
+
+	return nil
+}
+
+// ExecuteCancelOrders cancels orders for all accounts
+func (e *Executor) ExecuteCancelOrders(ctx context.Context, symbol string) error {
+	for accountName, brk := range e.brokers {
+		fmt.Printf("\n💼 Account: %s\n", accountName)
+
+		var err error
+		if symbol != "" {
+			err = brk.CancelAllOrders(ctx, symbol)
+			if err != nil {
+				fmt.Printf("  ✗ Failed to cancel orders for %s: %v\n", symbol, err)
+				continue
+			}
+			fmt.Printf("  ✓ Canceled all orders for %s\n", symbol)
+		} else {
+			// Get all positions to cancel orders for each symbol
+			positions, err := brk.GetPositions(ctx, &broker.PositionFilter{})
+			if err != nil {
+				fmt.Printf("  ✗ Failed to get positions: %v\n", err)
+				continue
+			}
+
+			if len(positions) == 0 {
+				fmt.Printf("  No positions with orders to cancel\n")
+				continue
+			}
+
+			for _, pos := range positions {
+				err = brk.CancelAllOrders(ctx, pos.Symbol)
+				if err != nil {
+					fmt.Printf("  ✗ Failed to cancel orders for %s: %v\n", pos.Symbol, err)
+				} else {
+					fmt.Printf("  ✓ Canceled orders for %s\n", pos.Symbol)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// ExecuteClosePosition closes positions for all accounts
+func (e *Executor) ExecuteClosePosition(ctx context.Context, symbol string, percentage float64) error {
+	for accountName, brk := range e.brokers {
+		fmt.Printf("\n💼 Account: %s\n", accountName)
+
+		// Get position
+		var position *broker.Position
+		var err error
+
+		if symbol != "" {
+			position, err = brk.GetPosition(ctx, symbol)
+		} else {
+			// Get all positions and close them
+			positions, err := brk.GetPositions(ctx, &broker.PositionFilter{})
+			if err != nil {
+				fmt.Printf("  ✗ Failed to get positions: %v\n", err)
+				continue
+			}
+
+			if len(positions) == 0 {
+				fmt.Printf("  No positions to close\n")
+				continue
+			}
+
+			// Close each position
+			for _, pos := range positions {
+				if err := e.closePosition(ctx, brk, pos, percentage); err != nil {
+					fmt.Printf("  ✗ Failed to close %s: %v\n", pos.Symbol, err)
+				}
+			}
+			continue
+		}
+
+		if err != nil {
+			fmt.Printf("  ✗ Failed to get position: %v\n", err)
+			continue
+		}
+
+		if position == nil {
+			fmt.Printf("  No position found for %s\n", symbol)
+			continue
+		}
+
+		if err := e.closePosition(ctx, brk, position, percentage); err != nil {
+			fmt.Printf("  ✗ Failed to close position: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
+// closePosition closes a single position
+func (e *Executor) closePosition(ctx context.Context, brk broker.Broker, pos *broker.Position, percentage float64) error {
+	// Calculate size to close
+	size := pos.Size
+	if percentage > 0 && percentage < 100 {
+		size = pos.Size * (percentage / 100)
+	}
+
+	// Determine close side (opposite of position side)
+	closeSide := broker.SideLong
+	if pos.Side == broker.SideLong {
+		closeSide = broker.SideShort
+	}
+
+	// Place market order to close
+	orderReq := &broker.OrderRequest{
+		Symbol:     pos.Symbol,
+		Side:       closeSide,
+		Type:       broker.OrderTypeMarket,
+		Size:       size,
+		ReduceOnly: true,
+	}
+
+	order, err := brk.PlaceOrder(ctx, orderReq)
+	if err != nil {
+		return err
+	}
+
+	if percentage > 0 && percentage < 100 {
+		fmt.Printf("  ✓ Closed %.0f%% of %s position (%.4f) | Order: %s\n",
+			percentage, pos.Symbol, size, order.ID)
+	} else {
+		fmt.Printf("  ✓ Closed %s position (%.4f) | Order: %s\n",
+			pos.Symbol, size, order.ID)
+	}
+
+	return nil
+}
+
+// ExecuteTrailingStop sets trailing stop for positions
+func (e *Executor) ExecuteTrailingStop(ctx context.Context, symbol string, triggerPrice, callbackRate float64) error {
+	for accountName, brk := range e.brokers {
+		fmt.Printf("\n💼 Account: %s\n", accountName)
+
+		// Get position
+		position, err := brk.GetPosition(ctx, symbol)
+		if err != nil {
+			fmt.Printf("  ✗ Failed to get position: %v\n", err)
+			continue
+		}
+
+		if position == nil {
+			fmt.Printf("  No position found for %s\n", symbol)
+			continue
+		}
+
+		// Determine side for trailing stop (opposite of position)
+		trailSide := broker.SideShort // Close long
+		if position.Side == broker.SideShort {
+			trailSide = broker.SideLong // Close short
+		}
+
+		// Place trailing stop order
+		orderReq := &broker.OrderRequest{
+			Symbol:     symbol,
+			Side:       trailSide,
+			Type:       broker.OrderTypeTrailingStop,
+			Size:       position.Size,
+			ReduceOnly: true,
+			Trailing: &broker.TrailingConfig{
+				ActivationPrice: triggerPrice,
+				CallbackRate:    callbackRate / 100, // Convert percentage to decimal
+			},
+		}
+
+		order, err := brk.PlaceOrder(ctx, orderReq)
+		if err != nil {
+			fmt.Printf("  ✗ Failed to place trailing stop: %v\n", err)
+			continue
+		}
+
+		fmt.Printf("  ✓ Trailing stop set for %s\n", symbol)
+		fmt.Printf("    Activation: %.2f\n", triggerPrice)
+		fmt.Printf("    Callback:   %.2f%%\n", callbackRate)
+		fmt.Printf("    Order ID:   %s\n", order.ID)
+	}
+
+	return nil
+}
+
+// ExecuteBreakEven moves stop loss to entry price
+func (e *Executor) ExecuteBreakEven(ctx context.Context, symbol string) error {
+	for accountName, brk := range e.brokers {
+		fmt.Printf("\n💼 Account: %s\n", accountName)
+
+		// Get position
+		position, err := brk.GetPosition(ctx, symbol)
+		if err != nil {
+			fmt.Printf("  ✗ Failed to get position: %v\n", err)
+			continue
+		}
+
+		if position == nil {
+			fmt.Printf("  No position found for %s\n", symbol)
+			continue
+		}
+
+		// Cancel existing orders (stop loss)
+		if err := brk.CancelAllOrders(ctx, symbol); err != nil {
+			fmt.Printf("  ✗ Failed to cancel existing orders: %v\n", err)
+			continue
+		}
+
+		// Determine side for stop loss (opposite of position)
+		stopSide := broker.SideShort
+		if position.Side == broker.SideShort {
+			stopSide = broker.SideLong
+		}
+
+		// Place new stop loss at entry price
+		orderReq := &broker.OrderRequest{
+			Symbol:     symbol,
+			Side:       stopSide,
+			Type:       broker.OrderTypeStop,
+			Size:       position.Size,
+			StopPrice:  position.EntryPrice,
+			ReduceOnly: true,
+		}
+
+		order, err := brk.PlaceOrder(ctx, orderReq)
+		if err != nil {
+			fmt.Printf("  ✗ Failed to place break even stop: %v\n", err)
+			continue
+		}
+
+		fmt.Printf("  ✓ Break even set for %s\n", symbol)
+		fmt.Printf("    Entry price: %.2f\n", position.EntryPrice)
+		fmt.Printf("    Order ID:    %s\n", order.ID)
+	}
+
+	return nil
+}
+
 // Helper functions
 
 func validatePriceLogic(side *intent.Side, entry, stopLoss, currentPrice float64) error {

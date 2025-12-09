@@ -72,7 +72,12 @@ func init() {
 	// Add subcommands
 	rootCmd.AddCommand(balanceCmd)
 	rootCmd.AddCommand(positionsCmd)
+	rootCmd.AddCommand(ordersCmd)
 	rootCmd.AddCommand(openCmd)
+	rootCmd.AddCommand(closeCmd)
+	rootCmd.AddCommand(cancelCmd)
+	rootCmd.AddCommand(trailCmd)
+	rootCmd.AddCommand(breakevenCmd)
 }
 
 // getExecutor returns the initialized executor or exits
