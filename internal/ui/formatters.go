@@ -8,24 +8,25 @@ import (
 
 // FormatBalance formats a balance display
 func FormatBalance(balance *broker.Balance) string {
-	output := ""
-	output += KeyValue("Asset", balance.Asset) + "\n"
-	output += KeyValue("Total", fmt.Sprintf("%.2f", balance.Total)) + "\n"
-	output += KeyValue("Available", fmt.Sprintf("%.2f", balance.Available)) + "\n"
-	output += KeyValue("In Use", fmt.Sprintf("%.2f", balance.InUse)) + "\n"
-
 	// PnL with color
 	unrealizedStr := ""
 	if balance.UnrealizedPnL > 0 {
-		unrealizedStr = SuccessStyle.Render(fmt.Sprintf("+%.2f", balance.UnrealizedPnL))
+		unrealizedStr = SuccessStyle.Render(fmt.Sprintf("+$%.2f", balance.UnrealizedPnL))
 	} else if balance.UnrealizedPnL < 0 {
-		unrealizedStr = ErrorStyle.Render(fmt.Sprintf("%.2f", balance.UnrealizedPnL))
+		unrealizedStr = ErrorStyle.Render(fmt.Sprintf("$%.2f", balance.UnrealizedPnL))
 	} else {
-		unrealizedStr = fmt.Sprintf("%.2f", balance.UnrealizedPnL)
+		unrealizedStr = MutedStyle.Render("$0.00")
 	}
-	output += KeyValue("Unrealized PnL", unrealizedStr) + "\n"
 
-	return output
+	data := map[string]string{
+		"Asset":         balance.Asset,
+		"Total":         fmt.Sprintf("$%.2f", balance.Total),
+		"Available":     fmt.Sprintf("$%.2f", balance.Available),
+		"In Use":        fmt.Sprintf("$%.2f", balance.InUse),
+		"Unrealized PnL": unrealizedStr,
+	}
+
+	return RenderSimpleTable(data)
 }
 
 // FormatPosition formats a position for compact display
@@ -87,19 +88,108 @@ func FormatOrder(order *broker.Order) string {
 
 // FormatPositionPlan formats a position plan
 func FormatPositionPlan(symbol string, size, entry, sl, tp float64, leverage int, risk, notional float64) string {
-	output := "\n" + HeaderStyle.Render("  Position Plan") + "\n"
-	output += KeyValue("Symbol", symbol) + "\n"
-	output += KeyValue("Size", fmt.Sprintf("%.4f", size)) + "\n"
-	output += KeyValue("Entry", fmt.Sprintf("%.2f", entry)) + "\n"
-	if sl > 0 {
-		output += KeyValue("Stop Loss", fmt.Sprintf("%.2f", sl)) + "\n"
+	data := map[string]string{
+		"Symbol":     symbol,
+		"Size":       fmt.Sprintf("%.4f", size),
+		"Entry":      fmt.Sprintf("$%.2f", entry),
+		"Stop Loss":  fmt.Sprintf("$%.2f", sl),
+		"Leverage":   fmt.Sprintf("%dx", leverage),
+		"Risk":       fmt.Sprintf("$%.2f", risk),
+		"Notional":   fmt.Sprintf("$%.2f", notional),
 	}
-	if tp > 0 {
-		output += KeyValue("Take Profit", fmt.Sprintf("%.2f", tp)) + "\n"
-	}
-	output += KeyValue("Leverage", fmt.Sprintf("%dx", leverage)) + "\n"
-	output += KeyValue("Risk", fmt.Sprintf("$%.2f", risk)) + "\n"
-	output += KeyValue("Notional", fmt.Sprintf("$%.2f", notional)) + "\n"
 
-	return output
+	if tp > 0 {
+		data["Take Profit"] = fmt.Sprintf("$%.2f", tp)
+	}
+
+	return "\n" + Box("Position Plan", RenderSimpleTable(data))
+}
+
+// FormatPositionsTable formats multiple positions as a table
+func FormatPositionsTable(positions []*broker.Position) string {
+	if len(positions) == 0 {
+		return Info("No open positions")
+	}
+
+	table := NewTable("Symbol", "Side", "Size", "Entry", "Mark", "PnL", "Leverage")
+
+	for _, pos := range positions {
+		// Side with icon and color
+		sideStr := ""
+		if pos.Side == broker.SideLong {
+			sideStr = LongStyle.Render(IconLong + " LONG")
+		} else {
+			sideStr = ShortStyle.Render(IconShort + " SHORT")
+		}
+
+		// PnL with color
+		pnlStr := ""
+		if pos.UnrealizedPnL > 0 {
+			pnlStr = SuccessStyle.Render(fmt.Sprintf("+$%.2f", pos.UnrealizedPnL))
+		} else if pos.UnrealizedPnL < 0 {
+			pnlStr = ErrorStyle.Render(fmt.Sprintf("$%.2f", pos.UnrealizedPnL))
+		} else {
+			pnlStr = MutedStyle.Render("$0.00")
+		}
+
+		table.AddRow(
+			BoldStyle.Render(pos.Symbol),
+			sideStr,
+			fmt.Sprintf("%.4f", pos.Size),
+			fmt.Sprintf("$%.2f", pos.EntryPrice),
+			fmt.Sprintf("$%.2f", pos.MarkPrice),
+			pnlStr,
+			fmt.Sprintf("%dx", pos.Leverage),
+		)
+	}
+
+	return table.Render()
+}
+
+// FormatOrdersTable formats multiple orders as a table
+func FormatOrdersTable(orders []*broker.Order) string {
+	if len(orders) == 0 {
+		return Info("No open orders")
+	}
+
+	table := NewTable("ID", "Symbol", "Side", "Type", "Size", "Price", "Status")
+
+	for _, order := range orders {
+		// Side with color
+		sideStr := ""
+		if order.Side == broker.SideLong {
+			sideStr = LongStyle.Render("LONG")
+		} else {
+			sideStr = ShortStyle.Render("SHORT")
+		}
+
+		// Type with color
+		typeStr := InfoStyle.Render(string(order.Type))
+		if order.Type == broker.OrderTypeMarket {
+			typeStr = BoldStyle.Render(string(order.Type))
+		} else if order.Type == broker.OrderTypeStop {
+			typeStr = WarningStyle.Render(string(order.Type))
+		}
+
+		// Price
+		priceStr := fmt.Sprintf("$%.2f", order.Price)
+		if order.Price == 0 && order.StopPrice > 0 {
+			priceStr = MutedStyle.Render(fmt.Sprintf("@ $%.2f", order.StopPrice))
+		}
+
+		// Status
+		statusStr := MutedStyle.Render(string(order.Status))
+
+		table.AddRow(
+			MutedStyle.Render(order.ID[:8]+"..."), // Short ID
+			BoldStyle.Render(order.Symbol),
+			sideStr,
+			typeStr,
+			fmt.Sprintf("%.4f", order.Size),
+			priceStr,
+			statusStr,
+		)
+	}
+
+	return table.Render()
 }

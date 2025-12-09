@@ -155,14 +155,8 @@ func (e *Executor) ExecuteGetPositions(ctx context.Context, symbol string) error
 			continue
 		}
 
-		if len(positions) == 0 {
-			fmt.Println(ui.Info("No open positions"))
-			continue
-		}
-
-		for _, pos := range positions {
-			fmt.Println(ui.FormatPosition(pos))
-		}
+		// Use table formatter
+		fmt.Println(ui.FormatPositionsTable(positions))
 	}
 
 	return nil
@@ -184,14 +178,8 @@ func (e *Executor) ExecuteGetOrders(ctx context.Context, symbol string) error {
 			continue
 		}
 
-		if len(orders) == 0 {
-			fmt.Println(ui.Info("No open orders"))
-			continue
-		}
-
-		for _, order := range orders {
-			fmt.Println(ui.FormatOrder(order))
-		}
+		// Use table formatter
+		fmt.Println(ui.FormatOrdersTable(orders))
 	}
 
 	return nil
