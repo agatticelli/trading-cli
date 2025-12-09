@@ -170,16 +170,24 @@ func FormatPositionsTable(positions []*broker.Position) string {
 
 // FormatOrdersTable formats multiple orders as a table
 func FormatOrdersTable(orders []*broker.Order) string {
-	return FormatOrdersTableWithIDs(orders, false)
+	return FormatOrdersTableWithIDs(orders, nil, false)
 }
 
-// FormatOrdersTableWithIDs formats orders table with optional full IDs
-func FormatOrdersTableWithIDs(orders []*broker.Order, showFullIDs bool) string {
+// FormatOrdersTableWithIDs formats orders table with optional full IDs and expected PnL
+func FormatOrdersTableWithIDs(orders []*broker.Order, positions []*broker.Position, showFullIDs bool) string {
 	if len(orders) == 0 {
 		return Info("No open orders")
 	}
 
-	table := NewTable("ID", "Symbol", "Side", "Type", "Size", "Price", "Status")
+	// Create position map for quick lookup by symbol
+	positionMap := make(map[string]*broker.Position)
+	if positions != nil {
+		for _, pos := range positions {
+			positionMap[pos.Symbol] = pos
+		}
+	}
+
+	table := NewTable("ID", "Symbol", "Side", "Type", "Size", "Price", "Expected PnL", "Status")
 
 	for _, order := range orders {
 		// Side with color
@@ -226,6 +234,45 @@ func FormatOrdersTableWithIDs(orders []*broker.Order, showFullIDs bool) string {
 			idStr = order.ID[:10] + "..."
 		}
 
+		// Calculate expected PnL for TAKE_PROFIT and STOP orders
+		expectedPnLStr := MutedStyle.Render("-")
+		if (order.Type == broker.OrderTypeTakeProfit || order.Type == broker.OrderTypeStop) && positionMap[order.Symbol] != nil {
+			pos := positionMap[order.Symbol]
+
+			// Get the execution price (order price or stop price)
+			executionPrice := order.Price
+			if executionPrice == 0 {
+				executionPrice = order.StopPrice
+			}
+
+			// Calculate PnL: (exit_price - entry_price) * size * direction
+			var pnlNominal float64
+			if pos.Side == broker.SideLong {
+				pnlNominal = (executionPrice - pos.EntryPrice) * order.Size
+			} else {
+				pnlNominal = (pos.EntryPrice - executionPrice) * order.Size
+			}
+
+			// Calculate PnL percentage
+			var pnlPercent float64
+			if pos.EntryPrice > 0 {
+				if pos.Side == broker.SideLong {
+					pnlPercent = ((executionPrice - pos.EntryPrice) / pos.EntryPrice) * 100
+				} else {
+					pnlPercent = ((pos.EntryPrice - executionPrice) / pos.EntryPrice) * 100
+				}
+			}
+
+			// Format with color
+			if pnlNominal > 0 {
+				expectedPnLStr = SuccessStyle.Render(fmt.Sprintf("+%s (+%.2f%%)", FormatMoney(pnlNominal), pnlPercent))
+			} else if pnlNominal < 0 {
+				expectedPnLStr = ErrorStyle.Render(fmt.Sprintf("%s (%.2f%%)", FormatMoney(pnlNominal), pnlPercent))
+			} else {
+				expectedPnLStr = MutedStyle.Render(fmt.Sprintf("%s (0.00%%)", FormatMoney(0)))
+			}
+		}
+
 		table.AddRow(
 			MutedStyle.Render(idStr),
 			BoldStyle.Render(order.Symbol),
@@ -233,6 +280,7 @@ func FormatOrdersTableWithIDs(orders []*broker.Order, showFullIDs bool) string {
 			typeStr,
 			fmt.Sprintf("%.4f", order.Size),
 			priceStr,
+			expectedPnLStr,
 			statusStr,
 		)
 	}

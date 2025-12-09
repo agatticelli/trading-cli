@@ -178,8 +178,15 @@ func (e *Executor) ExecuteGetOrders(ctx context.Context, symbol string, verbose 
 			continue
 		}
 
-		// Use table formatter with verbose option
-		fmt.Println(ui.FormatOrdersTableWithIDs(orders, verbose))
+		// Get positions to calculate expected PnL for TP/SL orders
+		positions, err := brk.GetPositions(ctx, &broker.PositionFilter{Symbol: symbol})
+		if err != nil {
+			// If we can't get positions, still show orders without expected PnL
+			positions = []*broker.Position{}
+		}
+
+		// Use table formatter with verbose option and positions for PnL calculation
+		fmt.Println(ui.FormatOrdersTableWithIDs(orders, positions, verbose))
 	}
 
 	return nil
