@@ -55,23 +55,21 @@ func (t *Table) Render() string {
 	// Header style
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(ColorSecondary).
-		PaddingLeft(1).
-		PaddingRight(1)
-
-	cellStyle := lipgloss.NewStyle().
-		PaddingLeft(1).
-		PaddingRight(1)
+		Foreground(ColorSecondary)
 
 	// Border style
 	borderStyle := lipgloss.NewStyle().
 		Foreground(ColorMuted)
 
-	// Calculate total width
-	totalWidth := 1 // Start with left border
-	for _, w := range t.widths {
-		totalWidth += w + 3 // width + padding (2) + separator (1)
+	// Calculate total width including all borders and padding
+	totalWidth := 0
+	for i, w := range t.widths {
+		totalWidth += w + 2 // width + padding (left + right = 2)
+		if i < len(t.widths)-1 {
+			totalWidth += 1 // separator between columns
+		}
 	}
+	totalWidth += 2 // left and right borders
 
 	// Top border
 	output.WriteString(borderStyle.Render("┌" + strings.Repeat("─", totalWidth-2) + "┐") + "\n")
@@ -79,7 +77,14 @@ func (t *Table) Render() string {
 	// Headers
 	output.WriteString(borderStyle.Render("│"))
 	for i, header := range t.headers {
-		output.WriteString(headerStyle.Width(t.widths[i]).Render(header))
+		output.WriteString(" ")
+		output.WriteString(headerStyle.Render(header))
+		// Pad to column width
+		padding := t.widths[i] - len(header)
+		if padding > 0 {
+			output.WriteString(strings.Repeat(" ", padding))
+		}
+		output.WriteString(" ")
 		if i < len(t.headers)-1 {
 			output.WriteString(borderStyle.Render("│"))
 		}
@@ -93,11 +98,15 @@ func (t *Table) Render() string {
 	for _, row := range t.rows {
 		output.WriteString(borderStyle.Render("│"))
 		for i, cell := range row {
-			// For styled cells, we need to pad correctly
+			output.WriteString(" ")
+			output.WriteString(cell)
+			// Pad to column width (accounting for ANSI codes)
 			cleanCell := stripANSI(cell)
 			padding := t.widths[i] - len(cleanCell)
-			paddedCell := cellStyle.Render(cell + strings.Repeat(" ", padding))
-			output.WriteString(paddedCell)
+			if padding > 0 {
+				output.WriteString(strings.Repeat(" ", padding))
+			}
+			output.WriteString(" ")
 			if i < len(row)-1 {
 				output.WriteString(borderStyle.Render("│"))
 			}
