@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/agatticelli/calculator-go"
 	"github.com/agatticelli/intent-go"
 	"github.com/agatticelli/strategy-go"
-	"github.com/agatticelli/strategy-go/calculator"
 	"github.com/agatticelli/strategy-go/strategies/riskratio"
 	"github.com/agatticelli/trading-go/bingx"
 	"github.com/agatticelli/trading-go/broker"

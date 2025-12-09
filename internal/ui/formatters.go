@@ -3,8 +3,12 @@ package ui
 import (
 	"fmt"
 
+	"github.com/agatticelli/calculator-go"
 	"github.com/agatticelli/trading-go/broker"
 )
+
+// Global calculator instance for UI calculations
+var calc = calculator.New(125)
 
 // FormatBalance formats a balance display
 func FormatBalance(balance *broker.Balance) string {
@@ -143,16 +147,8 @@ func FormatPositionsTable(positions []*broker.Position, orders []*broker.Order) 
 			pnlStr = MutedStyle.Render("$0.00")
 		}
 
-		// Calculate PnL percentage
-		// PnL% = (Mark - Entry) / Entry * 100 * Direction
-		var pnlPercent float64
-		if pos.EntryPrice > 0 {
-			if pos.Side == broker.SideLong {
-				pnlPercent = ((pos.MarkPrice - pos.EntryPrice) / pos.EntryPrice) * 100
-			} else {
-				pnlPercent = ((pos.EntryPrice - pos.MarkPrice) / pos.EntryPrice) * 100
-			}
-		}
+		// Calculate PnL percentage using calculator
+		pnlPercent := calc.CalculatePnLPercent(pos.Side, pos.EntryPrice, pos.MarkPrice)
 
 		// PnL % with color
 		pnlPercentStr := ""
@@ -164,7 +160,7 @@ func FormatPositionsTable(positions []*broker.Position, orders []*broker.Order) 
 			pnlPercentStr = MutedStyle.Render("0.00%")
 		}
 
-		// Calculate distance to TP (Take Profit)
+		// Calculate distance to TP (Take Profit) using calculator
 		toTPStr := MutedStyle.Render("-")
 		if orderMap[pos.Symbol] != nil && orderMap[pos.Symbol][broker.OrderTypeTakeProfit] != nil {
 			tpOrder := orderMap[pos.Symbol][broker.OrderTypeTakeProfit]
@@ -173,12 +169,7 @@ func FormatPositionsTable(positions []*broker.Position, orders []*broker.Order) 
 				tpPrice = tpOrder.StopPrice
 			}
 
-			var distancePercent float64
-			if pos.Side == broker.SideLong {
-				distancePercent = ((tpPrice - pos.MarkPrice) / pos.MarkPrice) * 100
-			} else {
-				distancePercent = ((pos.MarkPrice - tpPrice) / pos.MarkPrice) * 100
-			}
+			distancePercent := calc.CalculateDistanceToPrice(pos.Side, pos.MarkPrice, tpPrice)
 
 			if distancePercent > 0 {
 				toTPStr = SuccessStyle.Render(fmt.Sprintf("+%.2f%%", distancePercent))
@@ -187,7 +178,7 @@ func FormatPositionsTable(positions []*broker.Position, orders []*broker.Order) 
 			}
 		}
 
-		// Calculate distance to SL (Stop Loss)
+		// Calculate distance to SL (Stop Loss) using calculator
 		toSLStr := MutedStyle.Render("-")
 		if orderMap[pos.Symbol] != nil && orderMap[pos.Symbol][broker.OrderTypeStop] != nil {
 			slOrder := orderMap[pos.Symbol][broker.OrderTypeStop]
@@ -196,12 +187,7 @@ func FormatPositionsTable(positions []*broker.Position, orders []*broker.Order) 
 				slPrice = slOrder.StopPrice
 			}
 
-			var distancePercent float64
-			if pos.Side == broker.SideLong {
-				distancePercent = ((slPrice - pos.MarkPrice) / pos.MarkPrice) * 100
-			} else {
-				distancePercent = ((pos.MarkPrice - slPrice) / pos.MarkPrice) * 100
-			}
+			distancePercent := calc.CalculateDistanceToPrice(pos.Side, pos.MarkPrice, slPrice)
 
 			if distancePercent < 0 {
 				toSLStr = ErrorStyle.Render(fmt.Sprintf("%.2f%%", distancePercent))
@@ -330,23 +316,8 @@ func FormatOrdersTableWithIDs(orders []*broker.Order, positions []*broker.Positi
 					executionPrice = order.StopPrice
 				}
 
-				// Calculate PnL: (exit_price - entry_price) * size * direction
-				var pnlNominal float64
-				if pos.Side == broker.SideLong {
-					pnlNominal = (executionPrice - pos.EntryPrice) * order.Size
-				} else {
-					pnlNominal = (pos.EntryPrice - executionPrice) * order.Size
-				}
-
-				// Calculate PnL percentage
-				var pnlPercent float64
-				if pos.EntryPrice > 0 {
-					if pos.Side == broker.SideLong {
-						pnlPercent = ((executionPrice - pos.EntryPrice) / pos.EntryPrice) * 100
-					} else {
-						pnlPercent = ((pos.EntryPrice - executionPrice) / pos.EntryPrice) * 100
-					}
-				}
+				// Calculate expected PnL using calculator
+				pnlNominal, pnlPercent := calc.CalculateExpectedPnL(pos.Side, pos.EntryPrice, executionPrice, order.Size)
 
 				// Format with color
 				if pnlNominal > 0 {
