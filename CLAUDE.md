@@ -1,0 +1,1 @@
+- siempre que habras una posicion o order en demo para testear las cosas, acordate de hacer el close correspondiente para no dejar una orden o posicion abierta
