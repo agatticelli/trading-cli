@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -11,6 +11,7 @@ import (
 	"github.com/agatticelli/intent-go/witai"
 	"github.com/agatticelli/trading-cli/internal/executor"
 	"github.com/agatticelli/trading-cli/internal/ui"
+	"github.com/chzyer/readline"
 	"github.com/spf13/cobra"
 )
 
@@ -48,18 +49,35 @@ Requires WIT_AI_TOKEN environment variable.`,
 		fmt.Println(ui.HeaderStyle.Render("\n🤖 Trading CLI Chat Mode"))
 		fmt.Println(ui.MutedStyle.Render("  Type your trading commands in natural language"))
 		fmt.Println(ui.MutedStyle.Render("  Type 'exit' or 'quit' to leave"))
+		fmt.Println(ui.MutedStyle.Render("  Use arrow keys to navigate history"))
 		fmt.Println()
 
-		// Start chat loop
-		scanner := bufio.NewScanner(os.Stdin)
-		for {
-			fmt.Print(ui.InfoStyle.Render("> "))
+		// Configure readline
+		rl, err := readline.NewEx(&readline.Config{
+			Prompt:          ui.InfoStyle.Render("> "),
+			HistoryFile:     os.Getenv("HOME") + "/.trading-cli-history",
+			InterruptPrompt: "^C",
+			EOFPrompt:       "exit",
+		})
+		if err != nil {
+			return fmt.Errorf("failed to initialize readline: %w", err)
+		}
+		defer rl.Close()
 
-			if !scanner.Scan() {
+		// Start chat loop
+		for {
+			line, err := rl.Readline()
+			if err == readline.ErrInterrupt {
+				if len(line) == 0 {
+					break
+				} else {
+					continue
+				}
+			} else if err == io.EOF {
 				break
 			}
 
-			input := strings.TrimSpace(scanner.Text())
+			input := strings.TrimSpace(line)
 			if input == "" {
 				continue
 			}
